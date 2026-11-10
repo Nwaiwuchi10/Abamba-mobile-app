@@ -7,20 +7,42 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
+export const AbambaColors = {
+  primary: '#003459',
+  primaryDark: '#00253F',
+  primaryLight: '#004A7F',
+  secondaryLight: '#FCEED5',
+  secondaryDark: '#FFE7BA',
+  accent: '#FF5500',
+  accentDark: '#E04B00',
+  textDark: '#003459',
+  textBody: '#4B5563',
+  textMuted: '#9CA3AF',
+  background: '#FFFFFF',
+  backgroundBars: '#F3F9FB',
+  cardBackground: '#FFFFFF',
+  border: '#E5E7EB',
+  borderLight: '#F3F4F6',
+};
+
 export const Colors = {
   light: {
-    text: '#000000',
+    primary: '#003459',
+    text: '#003459',
     background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    backgroundElement: '#F3F9FB',
+    backgroundSelected: '#E0E7EC',
+    textSecondary: '#64748B',
+    tint: '#003459',
   },
   dark: {
+    primary: '#003459',
     text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    background: '#001A2C',
+    backgroundElement: '#00253F',
+    backgroundSelected: '#003459',
+    textSecondary: '#94A3B8',
+    tint: '#38BDF8',
   },
 } as const;
 
