@@ -2,19 +2,20 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   StyleSheet,
   TextInput,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, MapPin, Plus, Trash2, CheckCircle2 } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useResponseModal } from "../../../components/common/ResponseModalContext";
+import { KeyboardAwareScrollView } from "../../../components/common/KeyboardAwareScrollView";
 
 export default function AddressesScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { showError, showSuccess, showConfirm } = useResponseModal();
 
   const [addresses, setAddresses] = useState([
     {
@@ -44,7 +45,7 @@ export default function AddressesScreen() {
 
   const handleAdd = () => {
     if (!newTitle || !newStreet) {
-      Alert.alert("Missing Fields", "Please enter address label and street details.");
+      showError("Missing Fields", "Please enter address label and street details.");
       return;
     }
     const newAddr = {
@@ -61,11 +62,18 @@ export default function AddressesScreen() {
     setNewTitle("");
     setNewStreet("");
     setNewPhone("");
-    Alert.alert("Success", "Address added successfully.");
+    showSuccess("Address Added", "Shipping address saved successfully.");
   };
 
   const handleDelete = (id: string) => {
-    setAddresses((prev) => prev.filter((a) => a.id !== id));
+    showConfirm(
+      "Delete Address",
+      "Are you sure you want to delete this shipping address?",
+      () => setAddresses((prev) => prev.filter((a) => a.id !== id)),
+      undefined,
+      "Delete",
+      "Cancel"
+    );
   };
 
   const handleSetDefault = (id: string) => {
@@ -89,7 +97,7 @@ export default function AddressesScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {showAddModal && (
           <View style={styles.addCard}>
             <Text style={styles.addCardTitle}>New Delivery Address</Text>
@@ -125,7 +133,7 @@ export default function AddressesScreen() {
           <View key={item.id} style={styles.addressCard}>
             <View style={styles.cardTop}>
               <View style={styles.labelRow}>
-                <MapPin size={16} color="#FF5500" />
+                <MapPin size={16} color="#003459" />
                 <Text style={styles.addressLabel}>{item.name}</Text>
                 {item.isDefault && (
                   <View style={styles.defaultBadge}>
@@ -149,7 +157,7 @@ export default function AddressesScreen() {
                 style={styles.setDefaultBtn}
                 onPress={() => handleSetDefault(item.id)}
               >
-                <CheckCircle2 size={14} color="#6B7280" />
+                <CheckCircle2 size={14} color="#003459" />
                 <Text style={styles.setDefaultText}>Set as default</Text>
               </TouchableOpacity>
             )}
@@ -157,7 +165,7 @@ export default function AddressesScreen() {
         ))}
 
         <View style={{ height: 100 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }
@@ -172,7 +180,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
@@ -181,15 +189,15 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
+    fontSize: 17,
+    fontWeight: "800",
+    color: "#003459",
   },
   addBtn: {
-    backgroundColor: "#FF5500",
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    backgroundColor: "#003459",
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -198,7 +206,7 @@ const styles = StyleSheet.create({
   },
   addCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     padding: 16,
@@ -207,7 +215,7 @@ const styles = StyleSheet.create({
   addCardTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#111827",
+    color: "#003459",
     marginBottom: 12,
   },
   input: {
@@ -222,9 +230,9 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   saveBtn: {
-    backgroundColor: "#FF5500",
-    height: 44,
-    borderRadius: 8,
+    backgroundColor: "#003459",
+    height: 46,
+    borderRadius: 10,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
@@ -236,7 +244,7 @@ const styles = StyleSheet.create({
   },
   addressCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     padding: 16,
@@ -256,7 +264,7 @@ const styles = StyleSheet.create({
   addressLabel: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#1F2937",
+    color: "#003459",
   },
   defaultBadge: {
     backgroundColor: "#ECFDF5",
@@ -296,8 +304,7 @@ const styles = StyleSheet.create({
   },
   setDefaultText: {
     fontSize: 12,
-    color: "#6B7280",
-    fontWeight: "600",
+    color: "#003459",
+    fontWeight: "700",
   },
 });
-

@@ -15,11 +15,12 @@ import {
   Package,
   Clock,
   CheckCircle2,
-  AlertCircle,
   Truck,
   XCircle,
   ChevronRight,
   LogIn,
+  Building2,
+  MapPin,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { orderService } from "../../services";
@@ -177,10 +178,10 @@ export default function OrdersScreen() {
         </ScrollView>
       </View>
 
-      {/* Orders List */}
+      {/* Content */}
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -188,71 +189,85 @@ export default function OrdersScreen() {
         {loading && !refreshing ? (
           <View style={styles.loadingWrap}>
             <ActivityIndicator size="large" color="#003459" />
-            <Text style={styles.loadingText}>Loading your orders...</Text>
-          </View>
-        ) : !isAuthenticated && orders.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <View style={styles.emptyIconBg}>
-              <LogIn size={40} color="#003459" />
-            </View>
-            <Text style={styles.emptyTitle}>Sign in to view orders</Text>
-            <Text style={styles.emptySub}>
-              Log in to track your packages, view past purchases and live delivery statuses.
-            </Text>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => router.push("/auth/login" as any)}
-            >
-              <Text style={styles.actionBtnText}>Sign In / Register</Text>
-            </TouchableOpacity>
+            <Text style={styles.loadingText}>Loading orders...</Text>
           </View>
         ) : filteredOrders.length === 0 ? (
           <View style={styles.emptyWrap}>
             <View style={styles.emptyIconBg}>
-              <Package size={40} color="#9CA3AF" />
+              <Package size={40} color="#003459" />
             </View>
-            <Text style={styles.emptyTitle}>
-              {activeStatus === "all" ? "No Orders Yet" : `No ${activeStatus} orders`}
-            </Text>
+            <Text style={styles.emptyTitle}>No Orders Found</Text>
             <Text style={styles.emptySub}>
-              {activeStatus === "all"
-                ? "When you order items from Abamba, they will appear right here."
-                : "You have no orders matching this filter."}
+              {isAuthenticated
+                ? "When you order items from Abamba, all details and real-time delivery status will appear right here."
+                : "Sign in to track your orders, live deliveries, and purchase history."}
             </Text>
-            <TouchableOpacity
-              style={styles.actionBtn}
-              onPress={() => router.push("/products" as any)}
-            >
-              <Text style={styles.actionBtnText}>Start Shopping</Text>
-            </TouchableOpacity>
+            {!isAuthenticated ? (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => router.push("/auth/login" as any)}
+              >
+                <LogIn size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.actionBtnText}>Sign In to Account</Text>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={() => router.push("/(tabs)/products" as any)}
+              >
+                <Text style={styles.actionBtnText}>Explore Products</Text>
+              </TouchableOpacity>
+            )}
           </View>
         ) : (
-          filteredOrders.map((ord, idx) => {
+          filteredOrders.map((ord: any, idx: number) => {
             const badge = getStatusBadgeStyle(ord.status);
             const BadgeIcon = badge.icon;
-            const items = Array.isArray(ord.items)
+
+            const items: any[] = Array.isArray(ord.items) && ord.items.length > 0
               ? ord.items
-              : Array.isArray(ord.products)
-              ? ord.products
+              : ord.product
+              ? [{ name: ord.product, quantity: ord.quantity || 1, price: ord.totalAmount }]
               : [];
-            const firstItem = items[0] || {};
-            const itemCount = items.reduce(
+
+            const totalItemCount = items.reduce(
               (acc: number, cur: any) => acc + (cur.quantity || 1),
               0
             ) || ord.quantity || 1;
+
             const totalAmount =
               ord.total ||
               ord.totalAmount ||
               ord.price ||
               ord.payment?.amount ||
               0;
+
+            const orderIdValue = ord._id || ord.id || ord.orderId;
             const orderRef =
               ord.orderId ||
               ord.orderNumber ||
               (ord._id ? `#${ord._id.slice(-8).toUpperCase()}` : `#ORD-${idx + 1000}`);
 
+            const isPickup =
+              ord.fulfillmentType === "pickup_station" ||
+              ord.isPickupStation ||
+              ord.carrierId === "pickup-station" ||
+              ord.courierId === "pickup-station" ||
+              String(ord.courierName || "").toLowerCase().includes("pickup") ||
+              String(ord.shippingAddress?.addressLine1 || "").toUpperCase().includes("PICK-UP") ||
+              String(ord.shippingAddress?.addressLine1 || "").toUpperCase().includes("WETHERAL");
+
             return (
-              <View key={ord._id || ord.id || idx} style={styles.orderCard}>
+              <TouchableOpacity
+                key={ord._id || ord.id || idx}
+                style={styles.orderCard}
+                activeOpacity={0.85}
+                onPress={() => {
+                  if (orderIdValue) {
+                    router.push(`/orders/${orderIdValue}` as any);
+                  }
+                }}
+              >
                 {/* Header row */}
                 <View style={styles.cardHeader}>
                   <View style={styles.orderRefRow}>
@@ -269,79 +284,111 @@ export default function OrdersScreen() {
                     ]}
                   >
                     <BadgeIcon size={12} color={badge.text} style={{ marginRight: 4 }} />
-                    <Text
-                      style={[
-                        styles.statusText,
-                        { color: badge.text },
-                      ]}
-                    >
+                    <Text style={[styles.statusText, { color: badge.text }]}>
                       {String(ord.status || "Pending").toUpperCase()}
                     </Text>
                   </View>
                 </View>
 
-                {/* Body Details */}
-                <View style={styles.cardBody}>
-                  {firstItem?.imageUrl || firstItem?.product?.images?.[0]?.url ? (
-                    <Image
-                      source={{
-                        uri:
-                          firstItem?.imageUrl ||
-                          firstItem?.product?.images?.[0]?.url,
-                      }}
-                      style={styles.itemThumb}
-                      resizeMode="cover"
-                    />
+                {/* Fulfillment Indicator Tag */}
+                <View style={styles.fulfillmentTagRow}>
+                  {isPickup ? (
+                    <View style={styles.pickupPill}>
+                      <Building2 size={13} color="#003459" style={{ marginRight: 4 }} />
+                      <Text style={styles.pickupPillText}>Office Pick-Up Station</Text>
+                    </View>
                   ) : (
-                    <View style={styles.itemThumbPlaceholder}>
-                      <Package size={22} color="#9CA3AF" />
+                    <View style={styles.deliveryPill}>
+                      <Truck size={13} color="#2563EB" style={{ marginRight: 4 }} />
+                      <Text style={styles.deliveryPillText}>
+                        {ord.courierName || "Doorstep Delivery"}
+                      </Text>
                     </View>
                   )}
-
-                  <View style={styles.itemMeta}>
-                    <Text style={styles.prodName} numberOfLines={2}>
-                      {firstItem.name ||
-                        firstItem.product?.name ||
-                        ord.product ||
-                        "Abamba Marketplace Package"}
-                    </Text>
-                    <Text style={styles.dateText}>
-                      Placed on {formatDate(ord.createdAt || ord.date)}
-                    </Text>
-                    <Text style={styles.itemCountText}>
-                      {itemCount} {itemCount === 1 ? "item" : "items"}
-                    </Text>
-                  </View>
+                  <Text style={styles.dateText}>
+                    {formatDate(ord.createdAt || ord.date)}
+                  </Text>
                 </View>
 
-                {/* Footer price & tracking */}
+                {/* Multiple Ordered Items Preview */}
+                <View style={styles.itemsPreviewContainer}>
+                  {items.map((item: any, itemIdx: number) => {
+                    const itemImg =
+                      item.imageUrl ||
+                      item.image ||
+                      item.product?.images?.[0]?.url ||
+                      item.product?.thumbnail ||
+                      null;
+                    const itemName =
+                      item.name ||
+                      item.product?.name ||
+                      ord.product ||
+                      "Abamba Marketplace Package";
+                    const itemQty = item.quantity || 1;
+                    const itemPrice = Number(item.price || item.unitPrice || 0);
+
+                    return (
+                      <View
+                        key={item._id || item.id || itemIdx}
+                        style={[
+                          styles.itemRow,
+                          itemIdx !== items.length - 1 && styles.itemRowBorder,
+                        ]}
+                      >
+                        {itemImg ? (
+                          <Image
+                            source={{ uri: itemImg }}
+                            style={styles.itemThumb}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <View style={styles.itemThumbPlaceholder}>
+                            <Package size={20} color="#9CA3AF" />
+                          </View>
+                        )}
+
+                        <View style={styles.itemMeta}>
+                          <Text style={styles.prodName} numberOfLines={2}>
+                            {itemName}
+                          </Text>
+                          {item.variantAttributes && (
+                            <Text style={styles.itemVariantText}>
+                              {Object.entries(item.variantAttributes)
+                                .map(([k, v]) => `${k}: ${v}`)
+                                .join(" • ")}
+                            </Text>
+                          )}
+                          <View style={styles.itemPriceQtyRow}>
+                            <Text style={styles.itemQtyBadge}>Qty: {itemQty}</Text>
+                            {itemPrice > 0 && (
+                              <Text style={styles.itemUnitPriceText}>
+                                ₦{itemPrice.toLocaleString()}
+                              </Text>
+                            )}
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+
+                {/* Footer: Total Amount, Payment, and Action */}
                 <View style={styles.cardFooter}>
                   <View>
-                    <Text style={styles.totalLabel}>Total Price</Text>
+                    <Text style={styles.totalLabel}>
+                      Total ({totalItemCount} {totalItemCount === 1 ? "item" : "items"})
+                    </Text>
                     <Text style={styles.totalAmount}>
                       ₦{Number(totalAmount).toLocaleString()}
                     </Text>
                   </View>
 
-                  <View style={styles.paymentInfo}>
-                    <Text style={styles.paymentLabel}>
-                      Payment:{" "}
-                      <Text
-                        style={{
-                          color:
-                            ord.payment?.status === "completed" ||
-                            ord.payment?.status === "paid"
-                              ? "#059669"
-                              : "#D97706",
-                          fontWeight: "700",
-                        }}
-                      >
-                        {ord.payment?.status || "Escrow Protected"}
-                      </Text>
-                    </Text>
+                  <View style={styles.viewDetailBtnWrap}>
+                    <Text style={styles.viewDetailText}>View Details</Text>
+                    <ChevronRight size={16} color="#003459" />
                   </View>
                 </View>
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
@@ -361,7 +408,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
@@ -370,8 +417,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   headerTitle: {
-    fontSize: 16,
-    fontWeight: "700",
+    fontSize: 17,
+    fontWeight: "800",
     color: "#003459",
   },
   filterWrapper: {
@@ -447,6 +494,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
   },
   actionBtnText: {
     color: "#FFFFFF",
@@ -455,7 +504,7 @@ const styles = StyleSheet.create({
   },
   orderCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     marginBottom: 14,
@@ -473,7 +522,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#F3F4F6",
     paddingBottom: 10,
-    marginBottom: 12,
+    marginBottom: 10,
   },
   orderRefRow: {
     flexDirection: "row",
@@ -481,7 +530,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   orderId: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     color: "#111827",
   },
@@ -498,49 +547,110 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 0.3,
   },
-  cardBody: {
+  fulfillmentTagRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "space-between",
     marginBottom: 12,
   },
+  pickupPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 52, 89, 0.06)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  pickupPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#003459",
+  },
+  deliveryPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  deliveryPillText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#2563EB",
+  },
+  dateText: {
+    fontSize: 11.5,
+    color: "#6B7280",
+  },
+  itemsPreviewContainer: {
+    backgroundColor: "#F9FAFB",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  itemRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  itemRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
   itemThumb: {
-    width: 60,
-    height: 60,
+    width: 52,
+    height: 52,
     borderRadius: 8,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FFFFFF",
   },
   itemThumbPlaceholder: {
-    width: 60,
-    height: 60,
+    width: 52,
+    height: 52,
     borderRadius: 8,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#E5E7EB",
     alignItems: "center",
     justifyContent: "center",
   },
   itemMeta: {
     flex: 1,
+    marginLeft: 10,
   },
   prodName: {
-    fontSize: 13.5,
+    fontSize: 13,
     fontWeight: "600",
     color: "#1F2937",
     lineHeight: 18,
-    marginBottom: 4,
   },
-  dateText: {
-    fontSize: 11.5,
+  itemVariantText: {
+    fontSize: 11,
     color: "#6B7280",
-    marginBottom: 2,
+    marginTop: 2,
   },
-  itemCountText: {
-    fontSize: 11.5,
-    color: "#9CA3AF",
+  itemPriceQtyRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 4,
+  },
+  itemQtyBadge: {
+    fontSize: 11,
+    color: "#4B5563",
+    fontWeight: "600",
+    backgroundColor: "#E5E7EB",
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  itemUnitPriceText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#003459",
   },
   cardFooter: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-end",
+    alignItems: "center",
     borderTopWidth: 1,
     borderTopColor: "#F3F4F6",
     paddingTop: 10,
@@ -555,11 +665,14 @@ const styles = StyleSheet.create({
     color: "#003459",
     marginTop: 2,
   },
-  paymentInfo: {
-    alignItems: "flex-end",
+  viewDetailBtnWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
   },
-  paymentLabel: {
-    fontSize: 11.5,
-    color: "#4B5563",
+  viewDetailText: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#003459",
   },
 });

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import {
   View,
+  Text,
   Image,
   TouchableOpacity,
   TextInput,
@@ -9,8 +10,9 @@ import {
   RefreshControl,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Search, Bell } from "lucide-react-native";
+import { Search, Bell, User } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useAppSelector } from "../../store";
 import { productService } from "../../services";
 
 // Modularized home sections
@@ -33,6 +35,17 @@ export default function HomePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [products, setProducts] = useState<any[]>(fallbackProducts || []);
   const [search, setSearch] = useState("");
+  const user = useAppSelector((state) => state.auth.user as any);
+  const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
+
+  const userInitial = (
+    user?.firstName ||
+    user?.name ||
+    user?.email ||
+    "A"
+  )
+    .charAt(0)
+    .toUpperCase();
 
   const fetchHomeProducts = async () => {
     try {
@@ -85,9 +98,15 @@ export default function HomePage() {
         <View style={styles.headerIcons}>
           <TouchableOpacity
             style={styles.iconBtn}
-            onPress={() => router.push("/account" as any)}
+            onPress={() => router.push("/notifications" as any)}
           >
             <Bell size={20} color="#1F2937" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.avatarHeaderBtn}
+            onPress={() => router.push("/account" as any)}
+          >
+            <Text style={styles.avatarHeaderText}>{userInitial}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -96,7 +115,7 @@ export default function HomePage() {
       <View style={styles.searchBar}>
         <Search size={18} color="#9CA3AF" style={styles.searchIcon} />
         <TextInput
-          placeholder="Search products, brands and categories..."
+          placeholder="Search essentials, groceries and more..."
           value={search}
           onChangeText={setSearch}
           onSubmitEditing={() => router.push(`/products?search=${search}` as any)}
@@ -160,11 +179,25 @@ const styles = StyleSheet.create({
   headerIcons: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
   },
   iconBtn: {
     padding: 8,
     borderRadius: 20,
     backgroundColor: "#F3F4F6",
+  },
+  avatarHeaderBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "#003459",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarHeaderText: {
+    color: "#FFFFFF",
+    fontSize: 13,
+    fontWeight: "800",
   },
   searchBar: {
     flexDirection: "row",

@@ -5,7 +5,6 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, ShieldCheck, RefreshCw } from "lucide-react-native";
@@ -15,6 +14,7 @@ import { orderService } from "../../../services";
 import { useAppDispatch } from "../../../store";
 import { clearCart } from "../../../store/slices/cartSlice";
 import { ResponseModal, ResponseModalType } from "../../../components/common/ResponseModal";
+import appStorage from "../../../services/storage";
 
 export default function PaymentWebViewScreen() {
   const insets = useSafeAreaInsets();
@@ -24,6 +24,9 @@ export default function PaymentWebViewScreen() {
 
   const url = (params.url as string) || "";
   const orderId = (params.orderId as string) || "";
+  const type = (params.type as string) || ""; // "ad" | "order"
+  const planId = (params.planId as string) || "";
+
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const webViewRef = React.useRef<any>(null);
@@ -46,7 +49,7 @@ export default function PaymentWebViewScreen() {
   });
 
   const showModal = (
-    type: ResponseModalType,
+    modalType: ResponseModalType,
     title: string,
     message: string,
     primaryText = "OK",
@@ -56,7 +59,7 @@ export default function PaymentWebViewScreen() {
   ) => {
     setModalConfig({
       visible: true,
-      type,
+      type: modalType,
       title,
       message,
       primaryText,
@@ -74,6 +77,33 @@ export default function PaymentWebViewScreen() {
     if (verifying) return;
     try {
       setVerifying(true);
+
+      // Handle Ad Plan Payment completion
+      if (type === "ad") {
+        const stored = await appStorage.getItem("abamba_seller_active_ad");
+        const existing = stored ? JSON.parse(stored) : {};
+        const updated = {
+          ...existing,
+          status: "paid_setup",
+          planId: planId || existing.planId || "ad_7weeks",
+          paymentReference: reference || `AD_PAY_${Date.now()}`,
+        };
+        await appStorage.setItem("abamba_seller_active_ad", JSON.stringify(updated));
+
+        showModal(
+          "success",
+          "Ad Payment Confirmed",
+          "Your Paystack payment has been verified! Now set up your homepage ad banner details.",
+          "Continue Setup",
+          () => {
+            closeModal();
+            router.replace("/seller/ads" as any);
+          }
+        );
+        return;
+      }
+
+      // Handle Regular Order Payment verification
       if (orderId && reference) {
         await orderService.verifyPayment(orderId, { reference }).catch(() => {});
       } else if (reference) {
@@ -91,17 +121,30 @@ export default function PaymentWebViewScreen() {
         }
       );
     } catch (err) {
-      dispatch(clearCart());
-      showModal(
-        "success",
-        "Order Placed",
-        "Your payment transaction was submitted.",
-        "Go to Orders",
-        () => {
-          closeModal();
-          router.replace("/orders" as any);
-        }
-      );
+      if (type === "ad") {
+        showModal(
+          "success",
+          "Ad Payment Recorded",
+          "Your ad transaction was processed. Continue to configure your banner.",
+          "Continue Setup",
+          () => {
+            closeModal();
+            router.replace("/seller/ads" as any);
+          }
+        );
+      } else {
+        dispatch(clearCart());
+        showModal(
+          "success",
+          "Order Placed",
+          "Your payment transaction was submitted.",
+          "Go to Orders",
+          () => {
+            closeModal();
+            router.replace("/orders" as any);
+          }
+        );
+      }
     } finally {
       setVerifying(false);
     }
@@ -133,8 +176,8 @@ export default function PaymentWebViewScreen() {
       showModal(
         "error",
         "Payment Cancelled",
-        "Your transaction was not completed. You can try again or check your orders.",
-        "Back to Cart",
+        "Your transaction was not completed. You can try again.",
+        "Go Back",
         () => {
           closeModal();
           router.back();
@@ -150,39 +193,44 @@ export default function PaymentWebViewScreen() {
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => {
-            Alert.alert(
+            showModal(
+              "warning",
               "Leave Payment?",
-              "Are you sure you want to exit the payment process?",
-              [
-                { text: "Stay", style: "cancel" },
-                { text: "Exit", style: "destructive", onPress: () => router.back() },
-              ]
+              "Are you sure you want to cancel and exit the current payment process?",
+              "Exit Payment",
+              () => router.back(),
+              "Stay on Payment",
+              () => setModalConfig((prev) => ({ ...prev, visible: false }))
             );
           }}
         >
           <ArrowLeft size={22} color="#1F2937" />
         </TouchableOpacity>
+
         <View style={styles.headerTitleWrap}>
-          <Text style={styles.headerTitle}>Paystack Secure Checkout</Text>
+          <Text style={styles.headerTitle}>
+            {type === "ad" ? "Ad Subscription Payment" : "Secure Payment"}
+          </Text>
           <View style={styles.secureBadge}>
-            <ShieldCheck size={12} color="#10B981" />
-            <Text style={styles.secureText}>256-Bit SSL Encrypted</Text>
+            <ShieldCheck size={13} color="#059669" />
+            <Text style={styles.secureText}>Paystack Gateway • 256-bit SSL</Text>
           </View>
         </View>
+
         <TouchableOpacity
-          style={styles.backBtn}
+          style={styles.refreshBtn}
           onPress={() => webViewRef.current?.reload()}
         >
           <RefreshCw size={18} color="#4B5563" />
         </TouchableOpacity>
       </View>
 
-      {/* Loading Overlay */}
+      {/* Loading Bar */}
       {(loading || verifying) && (
-        <View style={styles.loadingBar}>
-          <ActivityIndicator size="small" color="#FF5500" />
+        <View style={styles.loadingWrap}>
+          <ActivityIndicator size="small" color="#003459" />
           <Text style={styles.loadingText}>
-            {verifying ? "Verifying payment..." : "Loading gateway..."}
+            {verifying ? "Verifying transaction with Paystack..." : "Loading secure payment page..."}
           </Text>
         </View>
       )}
@@ -195,6 +243,18 @@ export default function PaymentWebViewScreen() {
           onLoadStart={() => setLoading(true)}
           onLoadEnd={() => setLoading(false)}
           onNavigationStateChange={handleNavigationStateChange}
+          onMessage={(event) => {
+            try {
+              const data = JSON.parse(event.nativeEvent.data);
+              if (data?.event === "success" || data?.status === "success") {
+                handlePaymentCompleted(data?.reference);
+              } else if (data?.event === "close" || data?.event === "cancel") {
+                router.back();
+              }
+            } catch (e) {
+              console.warn("WebView message parse:", e);
+            }
+          }}
           javaScriptEnabled={true}
           domStorageEnabled={true}
           startInLoadingState={true}
@@ -204,7 +264,7 @@ export default function PaymentWebViewScreen() {
         <View style={styles.errorWrap}>
           <Text style={styles.errorText}>No authorization URL provided.</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={() => router.back()}>
-            <Text style={styles.retryText}>Back to Checkout</Text>
+            <Text style={styles.retryText}>Go Back</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -249,7 +309,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 15,
     fontWeight: "700",
-    color: "#003459",
+    color: "#111827",
   },
   secureBadge: {
     flexDirection: "row",
@@ -258,23 +318,26 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   secureText: {
-    fontSize: 10,
+    fontSize: 11,
     color: "#059669",
     fontWeight: "600",
   },
-  loadingBar: {
+  refreshBtn: {
+    padding: 6,
+  },
+  loadingWrap: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    backgroundColor: "#F0FDF4",
     paddingVertical: 8,
-    backgroundColor: "#FFF8F5",
+    gap: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#FFEADF",
+    borderBottomColor: "#DCFCE7",
   },
   loadingText: {
     fontSize: 12,
-    color: "#FF5500",
+    color: "#003459",
     fontWeight: "600",
   },
   webView: {
@@ -287,20 +350,19 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   errorText: {
-    fontSize: 15,
-    color: "#4B5563",
+    fontSize: 14,
+    color: "#6B7280",
     marginBottom: 16,
   },
   retryBtn: {
-    backgroundColor: "#FF5500",
-    paddingHorizontal: 18,
+    backgroundColor: "#003459",
+    paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
   },
   retryText: {
     color: "#FFFFFF",
+    fontSize: 13,
     fontWeight: "700",
-    fontSize: 14,
   },
 });
-

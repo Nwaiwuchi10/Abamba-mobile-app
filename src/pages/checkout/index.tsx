@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -21,12 +20,14 @@ import {
   LogIn,
   Check,
   Radio,
+  Building2,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useAppDispatch, useAppSelector, RootState } from "../../store";
 import { clearCart } from "../../store/slices/cartSlice";
 import { logisticsService, orderService, customerService } from "../../services";
 import { ResponseModal, ResponseModalType } from "../../components/common/ResponseModal";
+import { KeyboardAwareScrollView } from "../../components/common/KeyboardAwareScrollView";
 
 export default function CheckoutPage() {
   const insets = useSafeAreaInsets();
@@ -127,18 +128,44 @@ export default function CheckoutPage() {
     }
   }, [isAuthenticated]);
 
+  // Official Abamba Regional Pick-Up Station Option (exact web parity)
+  const pickupStationOption = {
+    id: "pickup-station",
+    courier_id: "pickup-station",
+    name: "Abamba Official Pick-Up Station",
+    courier_name: "Abamba Official Pick-Up Station",
+    email: "",
+    courier_email: "",
+    hub: "Angelina House, 31 Wetheral Rd, Owerri",
+    state: "Imo",
+    defaultBasePrice: 0,
+    price: 0,
+    isPickupStation: true,
+    address: "ANGELINA HOUSE, 31 WETHERAL ROAD OWERRI IMO STATE NIGERIA",
+    customerPhone: "+2348060039760",
+    supportPhone: "+2349077758206",
+    timeline: "5 to 7 working days",
+  };
+
   // Fetch logistics carriers based on selected state
   useEffect(() => {
     const fetchLogistics = async () => {
       try {
         setLoadingLogistics(true);
         const data = await logisticsService.getCheckoutOptions(stateName);
-        if (data?.allCompanies && data.allCompanies.length > 0) {
-          setLogisticsList(data.allCompanies);
-          setSelectedLogistics(data.defaultCompany || data.allCompanies[0]);
+        const allCompanies = data?.allCompanies || [];
+        // Combine delivery couriers with the official pick-up station option
+        const mergedList = [pickupStationOption, ...allCompanies];
+        setLogisticsList(mergedList);
+        if (!selectedLogistics) {
+          setSelectedLogistics(data.defaultCompany || mergedList[1] || pickupStationOption);
         }
       } catch (err) {
         console.log("Logistics error:", err);
+        setLogisticsList([pickupStationOption]);
+        if (!selectedLogistics) {
+          setSelectedLogistics(pickupStationOption);
+        }
       } finally {
         setLoadingLogistics(false);
       }
@@ -146,16 +173,27 @@ export default function CheckoutPage() {
     fetchLogistics();
   }, [stateName]);
 
-  const deliveryFee = selectedLogistics?.defaultBasePrice || 3000;
+  const isPickupStationSelected =
+    selectedLogistics?.isPickupStation || selectedLogistics?.id === "pickup-station";
+  const deliveryFee = isPickupStationSelected ? 0 : selectedLogistics?.defaultBasePrice || 3000;
   const grandTotal = totalAmount + deliveryFee;
 
   const handlePlaceOrder = async () => {
     // 1. Validation
-    if (!address.trim() || !phone.trim() || !fullName.trim()) {
+    if (!phone.trim() || !fullName.trim()) {
       showModal(
         "warning",
         "Missing Contact Details",
-        "Please provide your full name, delivery address, and contact phone number to proceed."
+        "Please provide your full name and contact phone number to proceed."
+      );
+      return;
+    }
+
+    if (!isPickupStationSelected && !address.trim()) {
+      showModal(
+        "warning",
+        "Missing Delivery Address",
+        "Please provide your delivery address for doorstep courier shipping."
       );
       return;
     }
@@ -190,18 +228,23 @@ export default function CheckoutPage() {
         phoneNumber: phone,
         shippingAddress: {
           fullName,
-          addressLine1: address,
-          city,
-          state: stateName,
+          addressLine1: isPickupStationSelected
+            ? "ANGELINA HOUSE, 31 WETHERAL ROAD OWERRI IMO STATE NIGERIA (OFFICE PICK-UP)"
+            : address,
+          city: isPickupStationSelected ? "Owerri" : city,
+          state: isPickupStationSelected ? "Imo" : stateName,
           phoneNumber: phone,
         },
         paymentMethod: resolvedPaymentMethod,
         provider: paymentProvider,
-        fulfillmentType: "delivery",
-        carrierId: selectedLogistics?.id,
-        courierId: selectedLogistics?.id,
-        courierName: selectedLogistics?.name,
-        courierEmail: selectedLogistics?.email,
+        fulfillmentType: isPickupStationSelected ? "pickup_station" : "delivery",
+        isPickupStation: isPickupStationSelected,
+        carrierId: isPickupStationSelected ? "pickup-station" : selectedLogistics?.id,
+        courierId: isPickupStationSelected ? "pickup-station" : selectedLogistics?.id,
+        courierName: isPickupStationSelected
+          ? "Abamba Official Pick-Up Station"
+          : selectedLogistics?.name,
+        courierEmail: isPickupStationSelected ? "" : selectedLogistics?.email,
         totalAmount: grandTotal,
         total: grandTotal,
         items: items.map((itm) => ({
@@ -211,7 +254,18 @@ export default function CheckoutPage() {
           price: itm.price || 0,
           shippingFee: deliveryFee,
         })),
-        notes: `Courier: ${selectedLogistics?.name || "RichmondLogistics"} | Recipient: ${phone}`,
+        notes: isPickupStationSelected
+          ? "Pickup Station: ANGELINA HOUSE, 31 WETHERAL ROAD OWERRI IMO STATE NIGERIA | Customers: +2348060039760, Support: +2349077758206 | Timeline: 5 to 7 working days (Free Pickup)"
+          : `Courier: ${selectedLogistics?.name || "RichmondLogistics"} | Recipient: ${phone}`,
+        pickupStation: isPickupStationSelected
+          ? {
+              address: "ANGELINA HOUSE, 31 WETHERAL ROAD OWERRI IMO STATE NIGERIA",
+              customerPhone: "+2348060039760",
+              supportPhone: "+2349077758206",
+              timeline: "5 to 7 working days",
+              fee: 0,
+            }
+          : undefined,
       };
 
       const res = await orderService.createOrder(orderPayload);
@@ -280,7 +334,7 @@ export default function CheckoutPage() {
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
@@ -367,21 +421,31 @@ export default function CheckoutPage() {
           </View>
         </View>
 
-        {/* 2. Logistics Courier Selection */}
+        {/* 2. Logistics & Store Pick-Up Selection */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Truck size={18} color="#003459" />
-            <Text style={styles.cardTitle}>Choose Courier Delivery Partner</Text>
+            <Text style={styles.cardTitle}>Delivery or Store Pick-Up</Text>
           </View>
+          <Text style={styles.sectionSubtitle}>
+            Choose doorstep delivery or pick up for free at our official regional hub:
+          </Text>
+
           {loadingLogistics ? (
             <ActivityIndicator color="#003459" style={{ marginVertical: 10 }} />
           ) : (
             logisticsList.map((log) => {
               const isSelected = selectedLogistics?.id === log.id;
+              const isPickup = log.isPickupStation || log.id === "pickup-station";
               return (
                 <TouchableOpacity
                   key={log.id}
-                  style={[styles.courierOption, isSelected && styles.courierSelected]}
+                  style={[
+                    styles.courierOption,
+                    isSelected && styles.courierSelected,
+                    isPickup && styles.pickupCourierOption,
+                    isPickup && isSelected && styles.pickupCourierSelected,
+                  ]}
                   onPress={() => setSelectedLogistics(log)}
                 >
                   <View style={styles.courierInfo}>
@@ -393,22 +457,38 @@ export default function CheckoutPage() {
                     >
                       {isSelected && <View style={styles.radioInner} />}
                     </View>
+                    <View style={styles.courierIconWrap}>
+                      {isPickup ? (
+                        <Building2 size={18} color={isSelected ? "#003459" : "#6B7280"} />
+                      ) : (
+                        <Truck size={18} color={isSelected ? "#003459" : "#6B7280"} />
+                      )}
+                    </View>
                     <View style={{ marginLeft: 10, flex: 1 }}>
-                      <Text
-                        style={[
-                          styles.courierName,
-                          isSelected && styles.courierNameActive,
-                        ]}
-                      >
-                        {log.name}
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center" }}>
+                        <Text
+                          style={[
+                            styles.courierName,
+                            isSelected && styles.courierNameActive,
+                          ]}
+                        >
+                          {log.name}
+                        </Text>
+                        {isPickup && (
+                          <View style={styles.freePill}>
+                            <Text style={styles.freePillText}>FREE (₦0)</Text>
+                          </View>
+                        )}
+                      </View>
                       <Text style={styles.courierSub}>
-                        {log.hub}, {log.state} • 2-4 Business Days
+                        {isPickup
+                          ? "🏢 Angelina House, 31 Wetheral Rd, Owerri • 5-7 Working Days"
+                          : `${log.hub}, ${log.state} • 2-4 Business Days`}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.courierPrice}>
-                    ₦{Number(log.defaultBasePrice).toLocaleString()}
+                  <Text style={[styles.courierPrice, isPickup && styles.pickupPrice]}>
+                    {isPickup ? "FREE" : `₦${Number(log.defaultBasePrice).toLocaleString()}`}
                   </Text>
                 </TouchableOpacity>
               );
@@ -460,8 +540,17 @@ export default function CheckoutPage() {
             <Text style={styles.summaryVal}>₦{totalAmount.toLocaleString()}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Delivery Fee</Text>
-            <Text style={styles.summaryVal}>₦{deliveryFee.toLocaleString()}</Text>
+            <Text style={styles.summaryLabel}>
+              {isPickupStationSelected ? "Office Pick-Up Fee" : "Delivery Fee"}
+            </Text>
+            <Text
+              style={[
+                styles.summaryVal,
+                isPickupStationSelected && { color: "#059669", fontWeight: "700" },
+              ]}
+            >
+              {isPickupStationSelected ? "FREE (₦0)" : `₦${deliveryFee.toLocaleString()}`}
+            </Text>
           </View>
           <View style={[styles.summaryRow, styles.totalRow]}>
             <Text style={styles.totalLabel}>Total Amount</Text>
@@ -512,7 +601,7 @@ export default function CheckoutPage() {
         </TouchableOpacity>
 
         <View style={{ height: 110 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {/* Response Modal */}
       <ResponseModal
@@ -649,6 +738,46 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: "row",
+  },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: "#6B7280",
+    marginBottom: 12,
+  },
+  pickupCourierOption: {
+    borderColor: "#BAE6FD",
+    backgroundColor: "#F0F9FF",
+  },
+  pickupCourierSelected: {
+    borderColor: "#003459",
+    backgroundColor: "rgba(0, 52, 89, 0.08)",
+  },
+  courierIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+  },
+  freePill: {
+    backgroundColor: "#D1FAE5",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  freePillText: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#065F46",
+  },
+  pickupPrice: {
+    color: "#059669",
+    fontWeight: "800",
   },
   courierOption: {
     flexDirection: "row",

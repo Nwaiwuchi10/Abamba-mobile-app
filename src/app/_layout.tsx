@@ -6,8 +6,10 @@ import { Provider } from "react-redux";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { View, StyleSheet } from "react-native";
 import { store } from "../store";
-import { BottomTabBar } from "../components/common/BottomTabBar";
+import { NavigationTabBar } from "../components/common/NavigationTabBar";
 import { CustomSplashScreen } from "../components/common/CustomSplashScreen";
+import { AuthSessionBootstrap } from "../components/common/AuthSessionBootstrap";
+import { ResponseModalProvider } from "../components/common/ResponseModalContext";
 import { useColorScheme } from "../hooks/use-color-scheme";
 import "react-native-reanimated";
 
@@ -21,35 +23,39 @@ export default function RootLayout() {
 
   return (
     <Provider store={store}>
-      <SafeAreaProvider>
-        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-          <View style={styles.container}>
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: "#F9FAFB" },
-                animation: "fade",
-              }}
-            >
-              <Stack.Screen name="index" />
-              <Stack.Screen name="products/index" />
-              <Stack.Screen name="products/[id]" />
-              <Stack.Screen name="cart/index" />
-              <Stack.Screen name="account/index" />
-              <Stack.Screen name="wishlist/index" />
-            </Stack>
+      <AuthSessionBootstrap>
+        <SafeAreaProvider>
+          <ResponseModalProvider>
+            <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+              <View style={styles.container}>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: "#F9FAFB" },
+                    animation: "fade",
+                  }}
+                >
+                  <Stack.Screen name="index" />
+                  <Stack.Screen name="products/index" />
+                  <Stack.Screen name="products/[id]" />
+                  <Stack.Screen name="cart/index" />
+                  <Stack.Screen name="account/index" />
+                  <Stack.Screen name="wishlist/index" />
+                </Stack>
 
-            {/* Static Reusable Bottom Tab Navigator */}
-            <BottomTabBar />
+                {/* Dynamic Reusable Bottom Tab Navigator (Buyer or Seller Mode) */}
+                <NavigationTabBar />
 
-            {/* Splash Screen */}
-            {!isSplashReady && (
-              <CustomSplashScreen onFinish={() => setIsSplashReady(true)} />
-            )}
-          </View>
-          <StatusBar style="dark" />
-        </ThemeProvider>
-      </SafeAreaProvider>
+                {/* Splash Screen */}
+                {!isSplashReady && (
+                  <CustomSplashScreen onFinish={() => setIsSplashReady(true)} />
+                )}
+              </View>
+              <StatusBar style="dark" />
+            </ThemeProvider>
+          </ResponseModalProvider>
+        </SafeAreaProvider>
+      </AuthSessionBootstrap>
     </Provider>
   );
 }

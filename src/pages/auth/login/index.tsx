@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,9 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,13 +16,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import appStorage from "../../../services/storage";
 import { authService } from "../../../services";
 import { useAppDispatch } from "../../../store";
-import { setCredentials } from "../../../store/slices/authSlice";
+import { setCredentials, logout } from "../../../store/slices/authSlice";
+import { useResponseModal } from "../../../components/common/ResponseModalContext";
+import { KeyboardAwareScrollView } from "../../../components/common/KeyboardAwareScrollView";
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
   const dispatch = useAppDispatch();
+  const { showError, showSuccess, showInfo } = useResponseModal();
 
   const redirectUrl = (params.redirect as string) || "/";
 
@@ -32,46 +33,102 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+
+  // Check if user is already logged in with an active valid token (like web useEffect session check)
+  useEffect(() => {
+    const verifyExistingSession = async () => {
+      try {
+        const token = await appStorage.getItem("token");
+        if (token) {
+          // Attempt to validate token with /users/me
+          const res = await authService.getProfile();
+          const user = res?.data?.data || res?.data;
+          if (user) {
+            dispatch(setCredentials({ user, token }));
+            router.replace(redirectUrl as any);
+            return;
+          }
+        }
+      } catch (err: any) {
+        if (err?.response?.status === 401 || err?.response?.status === 403) {
+          // Expired session - remove stale token
+          console.log("Token expired or unauthorized. Cleared stale token.");
+          await appStorage.removeItem("token");
+          dispatch(logout());
+        }
+      } finally {
+        setCheckingSession(false);
+      }
+    };
+
+    verifyExistingSession();
+  }, []);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert("Error", "Please fill in all fields.");
+    if (!email.trim() || !password) {
+      showError("Missing Information", "Please enter your email and password.");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await authService.login({ email, password });
+      const res = await authService.login({
+        email: email.trim().toLowerCase(),
+        password,
+      });
       const data = res.data?.data || res.data;
 
+      // Save email for OTP and session persistence
+      await appStorage.setItem("userEmail", email.trim().toLowerCase());
+
       if (data?.token) {
+        // Immediate token returned
+        const userObj = data.user || { id: "u_auth", email: email.trim().toLowerCase() };
         await appStorage.setItem("token", data.token);
+        await appStorage.setItem("userProfile", JSON.stringify(userObj));
         dispatch(
           setCredentials({
-            user: data.user || { id: "u1", email },
+            user: userObj,
             token: data.token,
           })
         );
-        Alert.alert("Success", "Welcome back to Abamba!");
-        router.replace(redirectUrl as any);
+        showSuccess("Welcome Back", "You have successfully signed in to Abamba!", () => {
+          router.replace(redirectUrl as any);
+        });
       } else {
-        Alert.alert("Login Notice", data?.message || "Please verify your OTP code.");
-        router.push({ pathname: "/auth/otp" as any, params: { email, redirect: redirectUrl } });
+        // OTP verification step required (Standard Abamba 2-step flow)
+        showSuccess(
+          "Verification Code Sent",
+          "OTP sent successfully, Please check your email.",
+          () => {
+            router.push({
+              pathname: "/auth/otp" as any,
+              params: { email: email.trim().toLowerCase(), redirect: redirectUrl },
+            });
+          }
+        );
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Invalid email or password.";
-      Alert.alert("Authentication Failed", msg);
+      const msg = err.response?.data?.message || "Invalid email or password. Please try again.";
+      showError("Authentication Failed", msg);
     } finally {
       setLoading(false);
     }
   };
 
+  if (checkingSession) {
+    return (
+      <View style={[styles.container, styles.center]}>
+        <ActivityIndicator size="large" color="#003459" />
+        <Text style={styles.sessionCheckingText}>Checking session...</Text>
+      </View>
+    );
+  }
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={[styles.container, { paddingTop: insets.top }]}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <ArrowLeft size={22} color="#1F2937" />
         </TouchableOpacity>
@@ -138,13 +195,20 @@ export default function LoginScreen() {
 
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push("/auth/signup" as any)}>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/auth/signup" as any,
+                  params: { redirect: redirectUrl },
+                })
+              }
+            >
               <Text style={styles.signupLink}>Sign Up</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
@@ -152,6 +216,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#FFFFFF",
+  },
+  center: {
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  sessionCheckingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: "#6B7280",
+    fontWeight: "500",
   },
   scrollContent: {
     paddingHorizontal: 24,
@@ -162,13 +236,13 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: "center",
-    marginTop: 20,
-    marginBottom: 32,
+    marginTop: 10,
+    marginBottom: 24,
   },
   logo: {
-    width: 160,
-    height: 48,
-    marginBottom: 16,
+    width: 150,
+    height: 44,
+    marginBottom: 12,
   },
   title: {
     fontSize: 22,
@@ -179,6 +253,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#6B7280",
     marginTop: 6,
+    textAlign: "center",
   },
   form: {
     width: "100%",
@@ -215,8 +290,8 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   forgotText: {
-    color: "#003459",
     fontSize: 13,
+    color: "#003459",
     fontWeight: "600",
   },
   loginBtn: {
@@ -239,7 +314,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginTop: 24,
+    marginTop: 20,
   },
   footerText: {
     fontSize: 13,
@@ -251,4 +326,3 @@ const styles = StyleSheet.create({
     color: "#003459",
   },
 });
-

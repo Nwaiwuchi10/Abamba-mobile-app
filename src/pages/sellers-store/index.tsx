@@ -15,11 +15,13 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { productService } from "../../services";
 import { ProductCard } from "../../components/common/ProductCard";
 import fallbackProducts from "../../../assets/initial-products.json";
+import { useResponseModal } from "../../components/common/ResponseModalContext";
 
 export default function SellersStorePage() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { id } = useLocalSearchParams();
+  const { showInfo } = useResponseModal();
 
   const [isFollowing, setIsFollowing] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -47,7 +49,7 @@ export default function SellersStorePage() {
 
   const handleFollow = () => {
     setIsFollowing(!isFollowing);
-    Alert.alert(
+    showInfo(
       isFollowing ? "Unfollowed" : "Following",
       isFollowing
         ? "You will no longer receive store updates."

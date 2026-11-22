@@ -56,21 +56,60 @@ const HERO_SLIDES = [
 ];
 
 export const CustomSplashScreen: React.FC<Props> = ({ onFinish }) => {
+  // Phase 1: Pure White Initial Screen with Centered primary-full-logo.png
+  // Phase 2: Original Splash Carousel with original #FCEED5 background
+  const [phase, setPhase] = useState<"initial-logo" | "hero-slides">("initial-logo");
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
 
-  // Animations
+  // Animations for Phase 1 (Centered Logo on Pure White Background)
+  const initialLogoFade = useRef(new Animated.Value(0)).current;
+  const initialLogoScale = useRef(new Animated.Value(0.9)).current;
+  const initialScreenFade = useRef(new Animated.Value(1)).current;
+
+  // Animations for Phase 2 (Hero Slides)
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const imageScaleAnim = useRef(new Animated.Value(0.92)).current;
   const slideAnim = useRef(new Animated.Value(15)).current;
 
   const currentSlide = HERO_SLIDES[currentSlideIndex];
 
+  // Phase 1: Fade-in and hold the centered primary-full-logo on pure white screen
   useEffect(() => {
     // Hide system splash screen immediately once our custom splash mounts
     SplashScreen.hideAsync().catch(() => {});
+
+    Animated.parallel([
+      Animated.timing(initialLogoFade, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.spring(initialLogoScale, {
+        toValue: 1,
+        friction: 6,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Transition from Phase 1 to Phase 2 (Hero Slides) after 1.8 seconds
+    const initialTimer = setTimeout(() => {
+      Animated.timing(initialScreenFade, {
+        toValue: 0,
+        duration: 400,
+        useNativeDriver: true,
+      }).start(() => {
+        setPhase("hero-slides");
+      });
+    }, 1800);
+
+    return () => clearTimeout(initialTimer);
   }, []);
 
+  // Phase 2: Carousel hero animation
   useEffect(() => {
+    if (phase !== "hero-slides") return;
+
     // Animate current slide in
     fadeAnim.setValue(0);
     imageScaleAnim.setValue(0.92);
@@ -106,7 +145,7 @@ export const CustomSplashScreen: React.FC<Props> = ({ onFinish }) => {
     }, 2800);
 
     return () => clearTimeout(timer);
-  }, [currentSlideIndex]);
+  }, [phase, currentSlideIndex]);
 
   const handleDismiss = () => {
     Animated.timing(fadeAnim, {
@@ -118,6 +157,30 @@ export const CustomSplashScreen: React.FC<Props> = ({ onFinish }) => {
     });
   };
 
+  // Render Phase 1: Pure White Screen with Centered primary-full-logo
+  if (phase === "initial-logo") {
+    return (
+      <Animated.View style={[styles.initialWhiteContainer, { opacity: initialScreenFade }]}>
+        <Animated.View
+          style={[
+            styles.centeredLogoBox,
+            {
+              opacity: initialLogoFade,
+              transform: [{ scale: initialLogoScale }],
+            },
+          ]}
+        >
+          <Image
+            source={require("../../../assets/logos/primary-full-logo.png")}
+            style={styles.initialCenteredLogo}
+            resizeMode="contain"
+          />
+        </Animated.View>
+      </Animated.View>
+    );
+  }
+
+  // Render Phase 2: Hero Pictures Splash Slides with original warm #FCEED5 background
   return (
     <View style={styles.container}>
       {/* Background Hero Picture */}
@@ -209,6 +272,26 @@ export const CustomSplashScreen: React.FC<Props> = ({ onFinish }) => {
 };
 
 const styles = StyleSheet.create({
+  // Phase 1: Pure White Screen with Centered Logo
+  initialWhiteContainer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#FFFFFF",
+    zIndex: 9999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  centeredLogoBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    paddingHorizontal: 36,
+  },
+  initialCenteredLogo: {
+    width: Math.min(width * 0.72, 300),
+    height: 80,
+  },
+
+  // Phase 2: Hero Slides (Original warm background restored)
   container: {
     position: "absolute",
     top: 0,

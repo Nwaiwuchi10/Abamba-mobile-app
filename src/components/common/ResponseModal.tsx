@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -29,6 +29,7 @@ export interface ResponseModalProps {
   onSecondaryPress?: () => void;
   onClose?: () => void;
   dismissible?: boolean;
+  autoCloseDuration?: number;
 }
 
 export const ResponseModal: React.FC<ResponseModalProps> = ({
@@ -42,7 +43,79 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
   onSecondaryPress,
   onClose,
   dismissible = true,
+  autoCloseDuration,
 }) => {
+  // Animation values for smooth entrance and gentle exit
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.92)).current;
+
+  // Auto-close timer ref
+  const timerRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 9,
+          tension: 65,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Default auto-close duration set to 5 seconds (5000ms) for response messages,
+      // or custom autoCloseDuration if specified (> 0)
+      const duration = autoCloseDuration !== undefined ? autoCloseDuration : 5000;
+      if (duration > 0) {
+        timerRef.current = setTimeout(() => {
+          handleGentleClose(onPrimaryPress || onClose);
+        }, duration);
+      }
+    } else {
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.92);
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+    };
+  }, [visible, autoCloseDuration]);
+
+  // Gentle fade & scale-out before calling dismiss callback
+  const handleGentleClose = (callback?: () => void) => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+    }
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 0.94,
+        duration: 280,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      if (callback) {
+        callback();
+      } else if (onClose) {
+        onClose();
+      }
+    });
+  };
+
   const getTheme = () => {
     switch (type) {
       case "success":
@@ -84,8 +157,8 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
   const Icon = theme.icon;
 
   const handleDismiss = () => {
-    if (dismissible && onClose) {
-      onClose();
+    if (dismissible) {
+      handleGentleClose(onClose);
     }
   };
 
@@ -93,16 +166,27 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
     <Modal
       transparent
       visible={visible}
-      animationType="fade"
+      animationType="none"
       onRequestClose={handleDismiss}
     >
       <TouchableWithoutFeedback onPress={handleDismiss}>
-        <View style={styles.overlay}>
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
           <TouchableWithoutFeedback>
-            <View style={styles.card}>
+            <Animated.View
+              style={[
+                styles.card,
+                {
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
               {/* Close Icon button */}
               {dismissible && onClose && (
-                <TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+                <TouchableOpacity
+                  style={styles.closeBtn}
+                  onPress={() => handleGentleClose(onClose)}
+                  activeOpacity={0.7}
+                >
                   <X size={18} color="#9CA3AF" />
                 </TouchableOpacity>
               )}
@@ -129,7 +213,7 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
                 {secondaryButtonText && (
                   <TouchableOpacity
                     style={styles.secondaryBtn}
-                    onPress={onSecondaryPress || onClose}
+                    onPress={() => handleGentleClose(onSecondaryPress || onClose)}
                     activeOpacity={0.7}
                   >
                     <Text style={styles.secondaryBtnText}>
@@ -144,15 +228,15 @@ export const ResponseModal: React.FC<ResponseModalProps> = ({
                     { backgroundColor: theme.buttonBg },
                     secondaryButtonText ? { flex: 1 } : { width: "100%" },
                   ]}
-                  onPress={onPrimaryPress || onClose}
+                  onPress={() => handleGentleClose(onPrimaryPress || onClose)}
                   activeOpacity={0.85}
                 >
                   <Text style={styles.primaryBtnText}>{primaryButtonText}</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            </Animated.View>
           </TouchableWithoutFeedback>
-        </View>
+        </Animated.View>
       </TouchableWithoutFeedback>
     </Modal>
   );
@@ -212,7 +296,7 @@ const styles = StyleSheet.create({
     color: "#6B7280",
     textAlign: "center",
     lineHeight: 20,
-    marginBottom: 22,
+    marginBottom: 20,
     paddingHorizontal: 4,
   },
   buttonContainer: {
@@ -248,4 +332,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

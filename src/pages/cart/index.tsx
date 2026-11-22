@@ -29,18 +29,20 @@ import {
   updateQuantity,
   clearCart,
 } from "../../store/slices/cartSlice";
+import { useResponseModal } from "../../components/common/ResponseModalContext";
 
 export default function CartScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { showConfirm, showWarning } = useResponseModal();
 
   const { items, totalAmount } = useAppSelector((state) => state.cart);
   const isAuthenticated = useAppSelector((state) => state.auth.isAuthenticated);
 
   const couriers = [
     {
-      id: "richmond",
+      id: "richmond-logistics",
       name: "Richmond Logistics",
       location: "Owerri, Imo State",
       eta: "1 - 2 business days",
@@ -48,28 +50,44 @@ export default function CartScreen() {
       isPickup: false,
     },
     {
-      id: "apex",
+      id: "apexgologistics",
       name: "Apex Go Logistics",
       location: "Owerri, Imo State",
-      eta: "1 - 3 business days",
+      eta: "Same-Day Delivery",
       price: 2400,
       isPickup: false,
     },
     {
-      id: "hens",
+      id: "hens-logistics",
       name: "Hens Logistics",
       location: "Owerri, Imo State",
-      eta: "2 - 4 business days",
+      eta: "1 - 2 business days",
       price: 3000,
       isPickup: false,
     },
     {
-      id: "pickup",
-      name: "Abamba Regional Pick-up Hub",
+      id: "pickup-station",
+      name: "Abamba Official Pick-Up Station",
       location: "31 Wetheral Road, Owerri",
-      eta: "Ready in 3 - 5 days",
+      eta: "Ready in 5 - 7 working days",
       price: 0,
       isPickup: true,
+    },
+    {
+      id: "princeswift-logistics",
+      name: "Prince Swift Logistics",
+      location: "Aba, Abia State",
+      eta: "Same-Day Delivery",
+      price: 3000,
+      isPickup: false,
+    },
+    {
+      id: "oksaturday-logistics",
+      name: "OkSaturday Logistics",
+      location: "Aba, Abia State",
+      eta: "1 - 2 business days",
+      price: 3000,
+      isPickup: false,
     },
   ];
 
@@ -80,15 +98,19 @@ export default function CartScreen() {
   const grandTotal = totalAmount + shippingFee;
 
   const handleClear = () => {
-    Alert.alert("Clear Cart", "Are you sure you want to remove all items from your cart?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Clear", style: "destructive", onPress: () => dispatch(clearCart()) },
-    ]);
+    showConfirm(
+      "Clear Cart",
+      "Are you sure you want to remove all items from your cart?",
+      () => dispatch(clearCart()),
+      undefined,
+      "Clear Cart",
+      "Cancel"
+    );
   };
 
   const handleCheckout = () => {
     if (items.length === 0) {
-      Alert.alert("Empty Cart", "Please add items to your cart before proceeding.");
+      showWarning("Empty Cart", "Please add items to your cart before proceeding.");
       return;
     }
     // Web parity: check if user is logged in, redirect to login with redirect param if not

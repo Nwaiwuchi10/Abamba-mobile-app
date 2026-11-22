@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,7 +7,6 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -17,65 +16,114 @@ import { authService } from "../../../services";
 import appStorage from "../../../services/storage";
 import { useAppDispatch } from "../../../store";
 import { setCredentials } from "../../../store/slices/authSlice";
+import { useResponseModal } from "../../../components/common/ResponseModalContext";
+import { KeyboardAwareScrollView } from "../../../components/common/KeyboardAwareScrollView";
 
 export default function OtpConfirmationScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { email, redirect } = useLocalSearchParams();
+  const params = useLocalSearchParams();
   const dispatch = useAppDispatch();
+  const { showError, showSuccess, showInfo } = useResponseModal();
+
+  const [email, setEmail] = useState((params.email as string) || "");
+  const redirect = (params.redirect as string) || "/";
 
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
 
-  const handleVerify = async () => {
-    if (!otp || otp.length < 4) {
-      Alert.alert("Error", "Please enter a valid OTP code.");
+  // If email was not passed directly in params, retrieve from stored userEmail
+  useEffect(() => {
+    if (!email) {
+      appStorage.getItem("userEmail").then((stored) => {
+        if (stored) setEmail(stored);
+      });
+    }
+  }, [email]);
+
+  // Resend cooldown timer (like web)
+  useEffect(() => {
+    let timer: any;
+    if (cooldown > 0) {
+      timer = setInterval(() => {
+        setCooldown((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [cooldown]);
+
+  const handleVerify = async (codeToVerify?: string) => {
+    const code = codeToVerify || otp;
+    if (!code || code.length < 4) {
+      showError("Invalid Code", "Please enter a valid 6-digit OTP code.");
       return;
     }
 
     try {
       setLoading(true);
-      const res = await authService.verifyOtp({ email: (email as string) || "", otp });
+      // Matches web authApi.verifyOtp({ email, otpCode: code })
+      const res = await authService.verifyOtp({
+        email: email.trim().toLowerCase(),
+        otpCode: code.trim(),
+      });
       const data = res?.data?.data || res?.data;
+
       if (data?.token) {
+        // Store session token permanently until expired/logged out
+        const userObj = data.user || {
+          id: data.user?._id || data.user?.id || "u_auth",
+          email: email.trim().toLowerCase(),
+          firstName: data.user?.firstName || data.user?.name,
+        };
         await appStorage.setItem("token", data.token);
+        await appStorage.setItem("userProfile", JSON.stringify(userObj));
+        await appStorage.removeItem("guestToken");
+        await appStorage.removeItem("userSignupPending");
+
         dispatch(
           setCredentials({
-            user: data.user || { id: "u1", email: (email as string) || "" },
+            user: userObj,
             token: data.token,
           })
         );
       }
-      Alert.alert("Verified", "Your verification was successful!");
-      const targetRoute = (redirect as string) || "/";
-      router.replace(targetRoute as any);
+
+      showSuccess("Account Verified", "Your account verification was successful!", () => {
+        router.replace(redirect as any);
+      });
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Invalid OTP code entered.";
-      Alert.alert("Verification Failed", msg);
+      const msg = err.response?.data?.message || "Invalid OTP code entered. Please try again.";
+      showError("Verification Failed", msg);
     } finally {
       setLoading(false);
     }
   };
 
   const handleResend = async () => {
+    if (cooldown > 0) return;
     try {
       setResending(true);
-      await authService.resendOtp({ email: (email as string) || "" });
-      Alert.alert("Sent", "A new OTP code has been delivered to your email.");
+      await authService.resendOtp({ email: email.trim().toLowerCase() });
+      setCooldown(180); // 3 minutes cooldown matching web
+      showSuccess("Verification Code Sent", "OTP sent successfully, Please check your email.");
     } catch (err: any) {
-      Alert.alert("Resend Failed", err.response?.data?.message || "Failed to resend code.");
+      showError("Resend Failed", err.response?.data?.message || "Failed to resend code.");
     } finally {
       setResending(false);
     }
   };
 
+  const formatCooldown = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  };
+
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={[styles.container, { paddingTop: insets.top }]}
-    >
-      <View style={styles.content}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <ArrowLeft size={22} color="#1F2937" />
         </TouchableOpacity>
@@ -86,7 +134,7 @@ export default function OtpConfirmationScreen() {
 
         <Text style={styles.title}>Enter OTP Code</Text>
         <Text style={styles.subtitle}>
-          We sent a verification code to{"\n"}
+          We sent a 6-digit verification code to{"\n"}
           <Text style={styles.emailHighlight}>{email || "your email"}</Text>
         </Text>
 
@@ -97,13 +145,18 @@ export default function OtpConfirmationScreen() {
           keyboardType="number-pad"
           maxLength={6}
           value={otp}
-          onChangeText={setOtp}
+          onChangeText={(val) => {
+            setOtp(val);
+            if (val.length === 6) {
+              handleVerify(val);
+            }
+          }}
           autoFocus
         />
 
         <TouchableOpacity
           style={[styles.verifyBtn, loading && styles.btnDisabled]}
-          onPress={handleVerify}
+          onPress={() => handleVerify()}
           disabled={loading}
         >
           {loading ? (
@@ -115,14 +168,26 @@ export default function OtpConfirmationScreen() {
 
         <View style={styles.resendRow}>
           <Text style={styles.resendText}>Didn't get the code? </Text>
-          <TouchableOpacity onPress={handleResend} disabled={resending}>
-            <Text style={styles.resendLink}>
-              {resending ? "Sending..." : "Resend OTP"}
+          <TouchableOpacity
+            onPress={handleResend}
+            disabled={resending || cooldown > 0}
+          >
+            <Text
+              style={[
+                styles.resendLink,
+                (resending || cooldown > 0) && { color: "#9CA3AF" },
+              ]}
+            >
+              {resending
+                ? "Sending..."
+                : cooldown > 0
+                ? `Resend in (${formatCooldown(cooldown)})`
+                : "Resend OTP"}
             </Text>
           </TouchableOpacity>
         </View>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
@@ -209,4 +274,3 @@ const styles = StyleSheet.create({
     color: "#003459",
   },
 });
-

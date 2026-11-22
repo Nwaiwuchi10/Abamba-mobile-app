@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import {
   View,
   Text,
-  ScrollView,
   TextInput,
   TouchableOpacity,
   StyleSheet,
@@ -12,10 +11,13 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, Mail, Phone, MapPin, Send } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useResponseModal } from "../../components/common/ResponseModalContext";
+import { KeyboardAwareScrollView } from "../../components/common/KeyboardAwareScrollView";
 
 export default function ContactScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { showError, showSuccess } = useResponseModal();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -25,16 +27,16 @@ export default function ContactScreen() {
 
   const handleSend = () => {
     if (!name || !email || !message) {
-      Alert.alert("Missing Fields", "Please fill in your name, email, and message.");
+      showError("Missing Fields", "Please fill in your name, email, and message.");
       return;
     }
     setSubmitting(true);
     setTimeout(() => {
       setSubmitting(false);
-      Alert.alert(
+      showSuccess(
         "Message Sent",
         "Thank you for contacting Abamba. Our customer support team will get back to you shortly.",
-        [{ text: "OK", onPress: () => router.back() }]
+        () => router.back()
       );
     }, 1000);
   };
@@ -49,7 +51,7 @@ export default function ContactScreen() {
         <View style={{ width: 32 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Info Cards */}
         <View style={styles.infoRow}>
           <View style={styles.infoBox}>
@@ -124,7 +126,7 @@ export default function ContactScreen() {
         </View>
 
         <View style={{ height: 100 }} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </View>
   );
 }

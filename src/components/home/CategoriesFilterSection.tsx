@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -8,44 +8,42 @@ import {
   StyleSheet,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { EXACT_WEB_CATEGORIES } from "../../constants/categories";
 
 export const CategoriesFilterSection = () => {
   const router = useRouter();
 
-  const staticCategories = [
-    { id: "1", name: "Foodstuffs", image: require("../../../assets/images/food-category.png") },
-    { id: "2", name: "Electronics", image: require("../../../assets/images/electronics.png") },
-    { id: "3", name: "Fashion", image: require("../../../assets/images/hangedclothes.png") },
-    { id: "4", name: "Phones", image: require("../../../assets/images/phone.png") },
-    { id: "5", name: "Cosmetics", image: require("../../../assets/images/cosmetics.png") },
-    { id: "6", name: "Accessories", image: require("../../../assets/images/accessories.png") },
-    { id: "7", name: "Furniture", image: require("../../../assets/images/furnitures.png") },
-    { id: "8", name: "Home & Decor", image: require("../../../assets/images/decor.png") },
-  ];
+  const categories = useMemo(() => EXACT_WEB_CATEGORIES, []);
 
   return (
     <View style={styles.container}>
       <View style={styles.sectionHeader}>
         <View>
           <Text style={styles.subHeading}>Browse Catalog</Text>
-          <Text style={styles.sectionTitle}>Product Categories</Text>
+          <Text style={styles.sectionTitle}>Shop by Category</Text>
         </View>
         <TouchableOpacity onPress={() => router.push("/products" as any)}>
-          <Text style={styles.seeAll}>See All</Text>
+          <Text style={styles.seeAll}>See All ({categories.length})</Text>
         </TouchableOpacity>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.catRow}>
-        {staticCategories.map((cat) => (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catRow}>
+        {categories.map((cat) => (
           <TouchableOpacity
             key={cat.id}
             style={styles.catCard}
-            onPress={() => router.push(`/products?category=${encodeURIComponent(cat.name)}` as any)}
+            onPress={() =>
+              router.push({
+                pathname: "/products" as any,
+                params: { category: cat.name },
+              })
+            }
+            activeOpacity={0.8}
           >
             <View style={styles.catImageWrap}>
               <Image source={cat.image} style={styles.catImage} resizeMode="contain" />
             </View>
-            <Text style={styles.catLabel} numberOfLines={1}>
+            <Text style={styles.catLabel} numberOfLines={2}>
               {cat.name}
             </Text>
           </TouchableOpacity>
@@ -70,10 +68,12 @@ const styles = StyleSheet.create({
   subHeading: {
     fontSize: 11,
     color: "#6B7280",
-    fontWeight: "500",
+    fontWeight: "600",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
   },
   sectionTitle: {
-    fontSize: 17,
+    fontSize: 18,
     fontWeight: "800",
     color: "#003459",
     marginTop: 1,
@@ -84,23 +84,28 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   catRow: {
-    paddingLeft: 16,
-    marginBottom: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 6,
   },
   catCard: {
     alignItems: "center",
     marginRight: 14,
-    width: 72,
+    width: 82,
   },
   catImageWrap: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
     backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderWidth: 1.5,
+    borderColor: "#F3F4F6",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    elevation: 2,
     marginBottom: 6,
   },
   catImage: {
@@ -109,9 +114,9 @@ const styles = StyleSheet.create({
   },
   catLabel: {
     fontSize: 11,
-    color: "#374151",
     fontWeight: "600",
+    color: "#1F2937",
     textAlign: "center",
+    lineHeight: 14,
   },
 });
-

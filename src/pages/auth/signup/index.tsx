@@ -7,61 +7,82 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
-  ScrollView,
   Image,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Eye, EyeOff, ArrowLeft, Mail, Lock, User, Phone } from "lucide-react-native";
+import { Eye, EyeOff, ArrowLeft, Mail, Lock, User } from "lucide-react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { authService } from "../../../services";
+import appStorage from "../../../services/storage";
+import { useResponseModal } from "../../../components/common/ResponseModalContext";
+import { KeyboardAwareScrollView } from "../../../components/common/KeyboardAwareScrollView";
 
 export default function SignupScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
   const redirect = (params.redirect as string) || "";
+  const { showError, showSuccess } = useResponseModal();
 
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleSignup = async () => {
-    if (!firstName || !lastName || !email || !password) {
-      Alert.alert("Error", "Please fill in all required fields.");
+    if (!name.trim() || !email.trim() || !password) {
+      showError("Required Fields", "Please enter your name, email and password.");
+      return;
+    }
+
+    if (password.length < 6) {
+      showError("Invalid Password", "Password must be at least 6 characters long.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      showError("Password Mismatch", "Passwords do not match. Please verify.");
       return;
     }
 
     try {
       setLoading(true);
-      await authService.register({
-        firstName,
-        lastName,
-        email,
-        phone: phoneNumber,
+      // Matching web authApi.signup({ name, email, password })
+      const res = await authService.signup({
+        name: name.trim(),
+        email: email.trim().toLowerCase(),
         password,
       });
-      Alert.alert("Success", "Account created! Please enter the OTP sent to your email.");
-      router.push({ pathname: "/auth/otp" as any, params: { email, redirect } });
+
+      // Save email in storage for OTP & session continuity like web
+      await appStorage.setItem("userEmail", email.trim().toLowerCase());
+      await appStorage.setItem("userSignupPending", "true");
+
+      showSuccess(
+        "Verification Code Sent",
+        "OTP sent successfully, Please check your email.",
+        () => {
+          router.push({
+            pathname: "/auth/otp" as any,
+            params: { email: email.trim().toLowerCase(), redirect },
+          });
+        }
+      );
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Registration failed. Try again.";
-      Alert.alert("Signup Failed", msg);
+      const msg = err.response?.data?.message || "Registration failed. Please try again.";
+      showError("Signup Failed", msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={[styles.container, { paddingTop: insets.top }]}
-    >
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <ArrowLeft size={22} color="#1F2937" />
         </TouchableOpacity>
@@ -77,41 +98,26 @@ export default function SignupScreen() {
         </View>
 
         <View style={styles.form}>
-          <View style={styles.row}>
-            <View style={{ flex: 1, marginRight: 8 }}>
-              <Text style={styles.label}>First Name</Text>
-              <View style={styles.inputContainer}>
-                <User size={18} color="#9CA3AF" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="First Name"
-                  placeholderTextColor="#9CA3AF"
-                  value={firstName}
-                  onChangeText={setFirstName}
-                />
-              </View>
-            </View>
-            <View style={{ flex: 1, marginLeft: 8 }}>
-              <Text style={styles.label}>Last Name</Text>
-              <View style={styles.inputContainer}>
-                <User size={18} color="#9CA3AF" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.input}
-                  placeholder="Last Name"
-                  placeholderTextColor="#9CA3AF"
-                  value={lastName}
-                  onChangeText={setLastName}
-                />
-              </View>
-            </View>
+          {/* Full Name */}
+          <Text style={styles.label}>Full Name</Text>
+          <View style={styles.inputContainer}>
+            <User size={18} color="#9CA3AF" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="What is your full name?"
+              placeholderTextColor="#9CA3AF"
+              value={name}
+              onChangeText={setName}
+            />
           </View>
 
-          <Text style={[styles.label, { marginTop: 14 }]}>Email Address</Text>
+          {/* Email */}
+          <Text style={[styles.label, { marginTop: 14 }]}>Email</Text>
           <View style={styles.inputContainer}>
             <Mail size={18} color="#9CA3AF" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="e.g. user@example.com"
+              placeholder="What is your email?"
               placeholderTextColor="#9CA3AF"
               keyboardType="email-address"
               autoCapitalize="none"
@@ -120,25 +126,13 @@ export default function SignupScreen() {
             />
           </View>
 
-          <Text style={[styles.label, { marginTop: 14 }]}>Phone Number</Text>
-          <View style={styles.inputContainer}>
-            <Phone size={18} color="#9CA3AF" style={styles.inputIcon} />
-            <TextInput
-              style={styles.input}
-              placeholder="+234 800 000 0000"
-              placeholderTextColor="#9CA3AF"
-              keyboardType="phone-pad"
-              value={phoneNumber}
-              onChangeText={setPhoneNumber}
-            />
-          </View>
-
+          {/* Password */}
           <Text style={[styles.label, { marginTop: 14 }]}>Password</Text>
           <View style={styles.inputContainer}>
             <Lock size={18} color="#9CA3AF" style={styles.inputIcon} />
             <TextInput
               style={styles.input}
-              placeholder="••••••••"
+              placeholder="Enter password (min 6 characters)"
               placeholderTextColor="#9CA3AF"
               secureTextEntry={!showPassword}
               value={password}
@@ -146,6 +140,26 @@ export default function SignupScreen() {
             />
             <TouchableOpacity onPress={() => setShowPassword(!showPassword)} style={styles.eyeBtn}>
               {showPassword ? <EyeOff size={18} color="#6B7280" /> : <Eye size={18} color="#6B7280" />}
+            </TouchableOpacity>
+          </View>
+
+          {/* Confirm Password */}
+          <Text style={[styles.label, { marginTop: 14 }]}>Confirm Password</Text>
+          <View style={styles.inputContainer}>
+            <Lock size={18} color="#9CA3AF" style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Confirm your password"
+              placeholderTextColor="#9CA3AF"
+              secureTextEntry={!showConfirmPassword}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+            />
+            <TouchableOpacity
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              style={styles.eyeBtn}
+            >
+              {showConfirmPassword ? <EyeOff size={18} color="#6B7280" /> : <Eye size={18} color="#6B7280" />}
             </TouchableOpacity>
           </View>
 
@@ -163,13 +177,20 @@ export default function SignupScreen() {
 
           <View style={styles.footerRow}>
             <Text style={styles.footerText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.push("/auth/login" as any)}>
+            <TouchableOpacity
+              onPress={() =>
+                router.push({
+                  pathname: "/auth/login" as any,
+                  params: { redirect },
+                })
+              }
+            >
               <Text style={styles.loginLink}>Sign In</Text>
             </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
@@ -208,9 +229,6 @@ const styles = StyleSheet.create({
   },
   form: {
     width: "100%",
-  },
-  row: {
-    flexDirection: "row",
   },
   label: {
     fontSize: 13,
@@ -271,4 +289,3 @@ const styles = StyleSheet.create({
     color: "#003459",
   },
 });
-

@@ -7,45 +7,49 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ArrowLeft, KeyRound, Mail } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { authService } from "../../../services";
+import { useResponseModal } from "../../../components/common/ResponseModalContext";
+import { KeyboardAwareScrollView } from "../../../components/common/KeyboardAwareScrollView";
 
 export default function ForgotPasswordScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { showError, showSuccess } = useResponseModal();
 
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async () => {
     if (!email) {
-      Alert.alert("Error", "Please enter your registered email address.");
+      showError("Missing Email", "Please enter your registered email address.");
       return;
     }
 
     try {
       setLoading(true);
       await authService.forgotPassword({ email });
-      Alert.alert("Password Reset Sent", "Check your inbox for password reset instructions.");
-      router.push({ pathname: "/auth/otp" as any, params: { email } });
+      showSuccess(
+        "Password Reset Sent",
+        "Check your email inbox for password reset instructions.",
+        () => {
+          router.push({ pathname: "/auth/otp" as any, params: { email } });
+        }
+      );
     } catch (err: any) {
-      Alert.alert("Error", err.response?.data?.message || "Failed to process request.");
+      showError("Error", err.response?.data?.message || "Failed to process request.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={[styles.container, { paddingTop: insets.top }]}
-    >
-      <View style={styles.content}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
+      <KeyboardAwareScrollView contentContainerStyle={styles.content}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
           <ArrowLeft size={22} color="#1F2937" />
         </TouchableOpacity>
@@ -83,8 +87,8 @@ export default function ForgotPasswordScreen() {
             <Text style={styles.submitBtnText}>Send Reset Link</Text>
           )}
         </TouchableOpacity>
-      </View>
-    </KeyboardAvoidingView>
+      </KeyboardAwareScrollView>
+    </View>
   );
 }
 
