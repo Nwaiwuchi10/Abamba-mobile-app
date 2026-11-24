@@ -1,8 +1,8 @@
 import axios from "axios";
 import appStorage from "./storage";
 
-export const BASE_URL = "https://abamba-backend.vercel.app/api/v1";
-// export const BASE_URL = "https://abamba-backend-d0r1.onrender.com/api/v1";
+// export const BASE_URL = "https://abamba-backend.vercel.app/api/v1";
+export const BASE_URL = "https://abamba-backend-d0r1.onrender.com/api/v1";
 
 const api = axios.create({
   baseURL: BASE_URL,

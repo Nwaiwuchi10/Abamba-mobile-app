@@ -8,17 +8,29 @@
     "scheme": "abamba",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/images/icon.png"
+      "bundleIdentifier": "com.abamba.app",
+      "buildNumber": "1",
+      "icon": "./assets/images/icon.png",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Abamba needs camera access so you can take and upload photos for products, profile, and verification documents.",
+        "NSPhotoLibraryUsageDescription": "Abamba needs photo library access so you can select and upload images for products, profile, and documents."
+      }
     },
     "android": {
       "package": "com.abamba.app",
+      "versionCode": 1,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "output": "server",
@@ -46,9 +58,9 @@
         }
       },
       "eas": {
-        "projectId": "34b3e3e4-c642-418d-abab-a498b86bec83"
+        "projectId": "b03d9088-6e53-42d8-9bd6-379b6f98a314"
       }
     },
-    "owner": "puyolchris"
+    "owner": "puyol"
   }
 }
