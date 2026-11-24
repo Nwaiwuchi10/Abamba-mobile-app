@@ -7,18 +7,25 @@
     "icon": "./assets/images/icon.png",
     "scheme": "abamba",
     "userInterfaceStyle": "automatic",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b03d9088-6e53-42d8-9bd6-379b6f98a314"
+    },
     "ios": {
       "bundleIdentifier": "com.abamba.app",
       "buildNumber": "1",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
         "NSCameraUsageDescription": "Abamba needs camera access so you can take and upload photos for products, profile, and verification documents.",
-        "NSPhotoLibraryUsageDescription": "Abamba needs photo library access so you can select and upload images for products, profile, and documents."
+        "NSPhotoLibraryUsageDescription": "Abamba needs photo library access so you can select and upload images for products, profile, and documents.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "com.abamba.app",
-      "versionCode": 1,
+      "versionCode": 2,
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
