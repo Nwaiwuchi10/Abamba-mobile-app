@@ -14,7 +14,7 @@
       "url": "https://u.expo.dev/b03d9088-6e53-42d8-9bd6-379b6f98a314"
     },
     "ios": {
-      "bundleIdentifier": "com.abamba.app",
+      "bundleIdentifier": "com.abamba.marketplace",
       "buildNumber": "1",
       "icon": "./assets/images/icon.png",
       "infoPlist": {
